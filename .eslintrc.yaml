@@ -1,0 +1,22 @@
+
+extends: eslint:recommended
+env:
+  node: true
+  es6: true
+
+parserOptions:
+  sourceType: module
+  allowImportExportEverywhere: true
+  ecmaVersion: 2017
+
+rules:
+  quotes: [warn, single]
+  semi: [warn, never]
+  require-await: error
+  keyword-spacing:
+    - warn
+    - overrides:
+        if: { after: false }
+        for: { after: false }
+        while: { after: false }
+        switch: { after: false }
