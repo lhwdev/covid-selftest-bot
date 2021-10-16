@@ -1,0 +1,7 @@
+servers:
+  covid-selftest-macro: # 자가진단 매크로
+    id: 868429217740783637
+    
+    stagingChannels:
+      - id: 896981889565487144 # 공지-스테이징
+      - id: 872655924274278400 # log

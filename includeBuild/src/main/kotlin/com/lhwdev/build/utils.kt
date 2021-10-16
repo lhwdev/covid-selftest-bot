@@ -24,6 +24,8 @@ fun KotlinProjectExtension.setupCommon() {
 				optIn("kotlin.RequiresOptIn")
 				optIn("kotlin.ExperimentalUnsignedTypes")
 				optIn("kotlin.time.ExperimentalTime")
+				
+				optIn("kotlinx.coroutines.ExperimentalCoroutinesApi")
 			}
 		}
 		
@@ -55,9 +57,9 @@ fun KotlinJvmProjectExtension.setup(init: (KotlinSetup<KotlinWithJavaTarget<Kotl
 	setupCommon()
 	setupJvmCommon(null)
 	
-	target.compilations.all {
-		kotlinOptions.jvmTarget = "1.8"
-	}
+	// target.compilations.all {
+	// 	kotlinOptions.jvmTarget = "1.8"
+	// }
 	
 	init?.invoke(KotlinSetup(target, null, sourceSets))
 }

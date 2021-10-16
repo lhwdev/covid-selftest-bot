@@ -26,8 +26,8 @@ serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-jso
 serialization-yaml = "com.charleskorn.kaml:kaml:0.36.0"
 
 # Discord - Kord (https://github.com/kordlib/kord)
-kord = "dev.kord:kord-core:0.8.0-M5"
-
+kord = "dev.kord:kord-core:0.8.0-M7"
+kordExtension = "com.kotlindiscord.kord.extensions:kord-extensions:1.5.1-RC1"
 
 # [bundles]
 # bundleName = ["a", "b", "c"]
