@@ -4,4 +4,6 @@ servers:
     
     stagingChannels:
       - id: 896981889565487144 # 공지-스테이징
-      - id: 872655924274278400 # log
+
+admins:
+  - 551597391741059083 # lhwdev

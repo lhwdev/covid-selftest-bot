@@ -2,8 +2,7 @@ package com.lhwdev.discord.covidSelfTestBot
 
 import com.charleskorn.kaml.Yaml
 import com.kotlindiscord.kord.extensions.ExtensibleBot
-import com.lhwdev.discord.covidSelfTestBot.commands.CommandsExtension
-import com.lhwdev.discord.covidSelfTestBot.commands.testServer
+import com.lhwdev.discord.covidSelfTestBot.commands.commandsMain
 import com.lhwdev.discord.covidSelfTestBot.server.serverMain
 import dev.kord.core.Kord
 import dev.kord.core.event.gateway.ReadyEvent
@@ -13,7 +12,7 @@ import java.io.File
 
 
 @Serializable
-class SecretConfig(val token: String)
+class SecretConfig(val token: String, val commands: Boolean)
 
 
 val secretConfig = Yaml.default.decodeFromString(SecretConfig.serializer(), File("config/secret-info.yml").readText())
@@ -25,25 +24,28 @@ suspend fun main() {
 	val bot = ExtensibleBot(token = secretConfig.token) {
 		presence {
 			// playing("저를 맨션해주세요!")
-			playing("채팅에서 /hello를 쳐보세요!")
+			// playing("채팅에서 /hello를 쳐보세요!")
+			playing("공지 관리")
 		}
 		
 		chatCommands {
 			enabled = true
+			defaultPrefix = "&"
 		}
 		
-		applicationCommands {
-			enabled = true
-			defaultGuild = testServer
-		}
+		// applicationCommands {
+		// 	enabled = true
+		// 	defaultGuild = testServer
+		// }
 		
-		extensions {
-			add(::CommandsExtension)
-		}
+		// extensions {
+		// 	add(::CommandsExtension)
+		// }
 	}
 	val kord = bot.getKoin().get<Kord>()
 	
 	kord.serverMain()
+	kord.commandsMain()
 	
 	kord.on<ReadyEvent> {
 		println("ready!")

@@ -22,3 +22,15 @@ fun String.splitTwoOrNull(separator: String): Pair<String, String>? {
 	if(index == -1) return null
 	return take(index) to drop(index + separator.length)
 }
+
+fun String.takeEllipsis(n: Int, ellipsis: String): String = if(length <= n) {
+	this
+} else {
+	take(n - ellipsis.length) + ellipsis
+}
+
+fun String.takeEllipsis(n: Int, ellipsis: Char): String = if(length <= n) {
+	this
+} else {
+	take(n - 1) + ellipsis
+}

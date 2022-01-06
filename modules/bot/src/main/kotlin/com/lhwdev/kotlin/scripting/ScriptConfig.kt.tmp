@@ -1,0 +1,22 @@
+package com.lhwdev.kotlin.scripting
+
+import kotlin.reflect.KClass
+
+
+open class ImplicitReceivers {
+	private val receivers = mutableListOf<ImplicitReceiver<*>>()
+	
+	fun <T : Any> receiver(type: KClass<T>): ImplicitReceiver<T> {
+		val receiver = ImplicitReceiver(type)
+		receivers += receiver
+		return receiver
+	}
+}
+
+class ImplicitReceiver<T : Any>(val type: KClass<T>)
+
+
+class ScriptConfig(
+	val implicitReceivers: ImplicitReceivers,
+	val includeThisClasspath: Boolean
+)

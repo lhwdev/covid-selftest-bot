@@ -5,8 +5,7 @@ package com.lhwdev.discord.covidSelfTestBot.server
 import com.charleskorn.kaml.PolymorphismStyle
 import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlConfiguration
-import com.lhwdev.discord.covidSelfTestBot.utils.ButtonManager
-import com.lhwdev.discord.covidSelfTestBot.utils.awaitButtonInteraction
+import com.lhwdev.discord.covidSelfTestBot.utils.askYesNoInteraction
 import com.lhwdev.discord.covidSelfTestBot.utils.long
 import com.lhwdev.discord.covidSelfTestBot.utils.onDelete
 import com.lhwdev.discord.utils.MessageCreateOrModifyBuilder
@@ -26,9 +25,11 @@ import dev.kord.core.entity.channel.MessageChannel
 import dev.kord.core.event.Event
 import dev.kord.core.live.LiveMessage
 import dev.kord.core.live.channel.live
+import dev.kord.core.live.channel.onMessageDelete
 import dev.kord.core.live.channel.onMessageUpdate
 import dev.kord.core.live.live
 import dev.kord.rest.builder.component.ButtonBuilder
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.launch
@@ -48,7 +49,10 @@ private val sContentYamlConfig = Yaml(
 
 
 @Serializable
-class ServerInfoConfig(val servers: Map<String, Server>) {
+class ServerInfoConfig(
+	val servers: Map<String, Server>,
+	val admins: List<Long>
+) {
 	@Serializable
 	class Server(
 		val id: Long,
@@ -66,7 +70,9 @@ private class Content(
 	val targetChannel: String,
 	val targetMessageId: Long? = null,
 	val components: List<Row>? = null,
-	val embeds: List<Embed>? = null
+	val embeds: List<Embed>? = null,
+	val forceTargetMessageId: Long? = null,
+	val forceDelete: Boolean = false
 ) {
 	@Serializable
 	class Row(
@@ -121,6 +127,29 @@ suspend fun Kord.serverMain() {
 						onMessage(stagingChannel, message)
 					}
 				}
+				
+				onMessageDelete onDelete@{ event ->
+					val message = event.message // this will happen when this was cached
+					if(message?.author?.isBot == true) {
+						return@onDelete
+					}
+					
+					val channel = event.getChannel()
+					val result = queryBotMetaForUserMessage(channel, event.messageId)
+					if(result != null) {
+						val (botMessage, botMeta) = result
+						val publishedId = botMeta.publishedMessageId
+						if(publishedId != null) launch {
+							val published = channel.getMessageOrNull(messageId = Snowflake(publishedId))
+							published?.delete(reason = "스테이징 채널의 원본 공지가 삭제되어서 자동으로 삭제됩니다.")
+							botMessage.edit { content = "✅ 공지를 성공적으로 삭제했습니다." }
+							
+							delay(5000)
+							
+							botMessage.delete()
+						}
+					}
+				}
 			}
 		}
 	}
@@ -128,7 +157,7 @@ suspend fun Kord.serverMain() {
 
 
 private val sChannelRegex = Regex("""<#(\d+)>""")
-private val sEmojiRegex = Regex("""<:(\w+):(\d+)>""")
+private val sEmojiRegex = Regex("""<:([\w\d_]+):(\d+)>""")
 
 private val sLiveCache = mutableMapOf<Snowflake, LiveMessage>()
 
@@ -162,7 +191,7 @@ private suspend fun Message.responseReply(
 		}
 	}
 	
-	@Suppress("JoinDeclarationAndAssignment") // ??? R U serious?
+	@Suppress("JoinDeclarationAndAssignment") // ??? R U serious, intellij?
 	lateinit var reply: Message
 	
 	if(!temporary) {
@@ -207,18 +236,7 @@ private fun getBotMeta(content: String): BotContent? {
 
 suspend fun Kord.onMessage(channel: MessageChannel, message: Message) {
 	// lookup existing
-	val result = channel.getMessagesAfter(message.id, limit = 5).transformWhile find@{
-		if(it.author?.id != selfId) return@find true
-		
-		val meta = getBotMeta(it.content) ?: return@find true
-		
-		if(meta.originalMessageId == message.id.long) {
-			emit(it to meta)
-			return@find false
-		}
-		
-		true
-	}.firstOrNull()
+	val result = queryBotMetaForUserMessage(channel, message.id)
 	
 	// parse content
 	val (userMetaStr, userContent) = message.content.splitTwoOrNull("----------") // 10 '-' (dash)
@@ -260,24 +278,40 @@ suspend fun Kord.onMessage(channel: MessageChannel, message: Message) {
 						DiscordPartialEmoji(name = c.emoji)
 					} else {
 						DiscordPartialEmoji(
-							name = match.groupValues[0],
-							id = Snowflake(match.groupValues[1])
+							name = match.groupValues[1],
+							id = Snowflake(match.groupValues[2])
 						)
 					}
 				}
 			}
 			
-			for(c in row.components) when(c) {
+			// val buttons = ComponentsManager<Int>()
+			
+			for((index, c) in row.components.withIndex()) when(c) {
 				is Content.Button -> when(c.style) {
-					// Content.Button.Style.primary -> publicButton(row) {  }
-					// Content.Button.Style.secondary -> 
-					// Content.Button.Style.danger -> 
+					Content.Button.Style.primary,
+					Content.Button.Style.secondary,
+					Content.Button.Style.danger -> {
+						val style = when(c.style) {
+							Content.Button.Style.primary -> ButtonStyle.Primary
+							Content.Button.Style.secondary -> ButtonStyle.Secondary
+							Content.Button.Style.danger -> ButtonStyle.Danger
+							else -> error("???")
+						}
+						
+						// interactionButton(style = style, customId = buttons.component(index)) {
+						// 	common(c)
+						// }
+						TODO()
+					}
 					Content.Button.Style.url -> linkButton(c.action) {
 						common(c)
 					}
-					else -> error("not supported")
 				}
 			}
+			
+			// If it has buttons, add action eval feature
+			
 		}
 	}
 	
@@ -298,58 +332,28 @@ suspend fun Kord.onMessage(channel: MessageChannel, message: Message) {
 		}
 	}
 	
-	if(publishedMessageId == null) { // create message
-		val askButton = ButtonManager<Boolean>()
-		val (ask, botMeta) = message.responseReply(result, temporary = true) {
-			content = "공지를 <#${target.id.asString}>에 올리시겠습니까?"
-			
-			actionRow {
-				interactionButton(style = ButtonStyle.Primary, customId = askButton.button(true)) {
-					label = "올리기"
+	suspend fun editNotification(publishedId: Long) {
+		val published = target.getMessageOrNull(messageId = Snowflake(publishedId)) ?: run {
+			val botMeta: BotContent
+			val (answer, ask) = askYesNoInteraction(
+				yesStyle = ButtonStyle.Primary,
+				yesText = "올리기",
+				noStyle = ButtonStyle.Secondary,
+				noText = "취소",
+				previous = result?.first
+			) { doContent ->
+				val pair = message.responseReply(result, temporary = true) {
+					content = "⚠ 기존 메세지가 없습니다. 새롭게 공지를 올리시겠습니까?"
+					doContent()
 				}
-				
-				interactionButton(style = ButtonStyle.Secondary, customId = askButton.button(false)) {
-					label = "취소"
-				}
+				botMeta = pair.second
+				pair.first
 			}
-		}
-		
-		@Suppress("SuspendFunctionOnCoroutineScope")
-		launch {
-			val askResult = ask.awaitButtonInteraction(askButton)
-			askResult.second.acknowledgePublic().delete()
 			
-			if(askResult.first) {
+			if(answer) {
 				createNotification(ask, botMeta)
 			} else {
 				ask.delete()
-			}
-		}
-	} else {
-		val published = target.getMessageOrNull(messageId = Snowflake(publishedMessageId)) ?: run {
-			val button = ButtonManager<Boolean>()
-			val (ask, botMeta) = message.responseReply(result, temporary = true) {
-				content = "⚠ 기존 메세지가 없습니다. 새롭게 공지를 올리시겠습니까?"
-				actionRow {
-					interactionButton(style = ButtonStyle.Primary, customId = button.button(true)) {
-						label = "올리기"
-					}
-					
-					interactionButton(style = ButtonStyle.Secondary, customId = button.button(false)) {
-						label = "취소"
-					}
-				}
-			}
-			
-			launch {
-				val (answer, interaction) = ask.awaitButtonInteraction(button)
-				interaction.acknowledgePublic().delete()
-				
-				if(answer) {
-					createNotification(ask, botMeta)
-				} else {
-					ask.delete()
-				}
 			}
 			
 			return
@@ -360,11 +364,55 @@ suspend fun Kord.onMessage(channel: MessageChannel, message: Message) {
 		}
 		message.responseReply(result, temporary = false) {
 			content = "✅ 내용을 수정했어요."
-			components.clear()
+		}
+	}
+	
+	when {
+		userMeta.forceTargetMessageId != null -> editNotification(userMeta.forceTargetMessageId)
+		publishedMessageId == null -> launch { // create message
+			val botMeta: BotContent
+			val (answer, ask) = askYesNoInteraction(
+				yesStyle = ButtonStyle.Primary,
+				yesText = "올리기",
+				noStyle = ButtonStyle.Secondary,
+				noText = "취소",
+				previous = result?.first
+			) { doContent ->
+				val pair = message.responseReply(result, temporary = true) {
+					content = "공지를 <#${target.id.asString}>에 올리시겠습니까?"
+					doContent()
+				}
+				botMeta = pair.second
+				pair.first
+			}
+			if(answer) {
+				createNotification(ask, botMeta)
+			} else {
+				ask.delete()
+			}
 			
+		}
+		else -> {
+			editNotification(publishedMessageId)
 		}
 	}
 }
+
+private suspend fun Kord.queryBotMetaForUserMessage(
+	channel: MessageChannel,
+	messageId: Snowflake
+) = channel.getMessagesAfter(messageId, limit = 5).transformWhile find@{
+	if(it.author?.id != selfId) return@find true
+	
+	val meta = getBotMeta(it.content) ?: return@find true
+	
+	if(meta.originalMessageId == messageId.long) {
+		emit(it to meta)
+		return@find false
+	}
+	
+	true
+}.firstOrNull()
 
 
 
