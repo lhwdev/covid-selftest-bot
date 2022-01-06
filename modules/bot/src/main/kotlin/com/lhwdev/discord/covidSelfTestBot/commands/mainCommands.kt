@@ -45,6 +45,8 @@ suspend fun Kord.commandsMain() {
 			}
 		}
 	}
+	
+	slashCommands()
 }
 
 

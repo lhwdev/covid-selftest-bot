@@ -1,7 +1,6 @@
 package com.lhwdev.discord.covidSelfTestBot
 
 import com.charleskorn.kaml.Yaml
-import com.kotlindiscord.kord.extensions.ExtensibleBot
 import com.lhwdev.discord.covidSelfTestBot.commands.commandsMain
 import com.lhwdev.discord.covidSelfTestBot.server.serverMain
 import dev.kord.core.Kord
@@ -21,28 +20,7 @@ val secretConfig = Yaml.default.decodeFromString(SecretConfig.serializer(), File
 suspend fun main() {
 	// System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "DEBUG")
 	
-	val bot = ExtensibleBot(token = secretConfig.token) {
-		presence {
-			// playing("저를 맨션해주세요!")
-			// playing("채팅에서 /hello를 쳐보세요!")
-			playing("공지 관리")
-		}
-		
-		chatCommands {
-			enabled = true
-			defaultPrefix = "&"
-		}
-		
-		// applicationCommands {
-		// 	enabled = true
-		// 	defaultGuild = testServer
-		// }
-		
-		// extensions {
-		// 	add(::CommandsExtension)
-		// }
-	}
-	val kord = bot.getKoin().get<Kord>()
+	val kord = Kord(token = secretConfig.token)
 	
 	kord.serverMain()
 	kord.commandsMain()
@@ -54,5 +32,5 @@ suspend fun main() {
 	// kord.getGuildApplicationCommands(testServer).collect { it.delete() }
 	
 	// This suspends until logout
-	bot.start()
+	kord.login()
 }
