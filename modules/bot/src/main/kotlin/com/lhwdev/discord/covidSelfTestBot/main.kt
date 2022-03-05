@@ -32,5 +32,9 @@ suspend fun main() {
 	// kord.getGuildApplicationCommands(testServer).collect { it.delete() }
 	
 	// This suspends until logout
-	kord.login()
+	kord.login {
+		presence {
+			playing("hello!")
+		}
+	}
 }

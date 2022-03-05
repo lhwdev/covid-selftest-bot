@@ -6,7 +6,7 @@ import com.lhwdev.utils.splitTwoOrNull
 import dev.kord.common.entity.ButtonStyle
 import dev.kord.common.entity.Snowflake
 import dev.kord.core.Kord
-import dev.kord.core.behavior.interaction.InteractionBehavior
+import dev.kord.core.behavior.interaction.ActionInteractionBehavior
 import dev.kord.core.behavior.interaction.InteractionResponseBehavior
 import dev.kord.core.behavior.interaction.respondEphemeral
 import dev.kord.core.behavior.interaction.respondPublic
@@ -37,7 +37,7 @@ val Snowflake.long: Long get() = value.toLong()
 
 const val global = true
 
-suspend inline fun InteractionBehavior.respondContextual(
+suspend inline fun ActionInteractionBehavior.respondContextual(
 	block: InteractionResponseCreateBuilder.() -> Unit
 ): InteractionResponseBehavior = if(global) {
 	respondPublic(block)
@@ -45,7 +45,7 @@ suspend inline fun InteractionBehavior.respondContextual(
 	respondEphemeral(block)
 }
 
-suspend fun InteractionBehavior.acknowledgeContextual(): InteractionResponseBehavior = if(global) {
+suspend fun ActionInteractionBehavior.acknowledgeContextual(): InteractionResponseBehavior = if(global) {
 	acknowledgePublic()
 } else {
 	acknowledgeEphemeral()

@@ -7,13 +7,22 @@ import com.lhwdev.discord.covidSelfTestBot.utils.filterUser
 import com.lhwdev.discord.covidSelfTestBot.utils.long
 import com.lhwdev.discord.covidSelfTestBot.utils.selectMenuFilter
 import com.lhwdev.utils.splitTwoOrNull
-import dev.kord.common.entity.Snowflake
+import dev.kord.common.annotation.KordExperimental
+import dev.kord.common.annotation.KordUnsafe
+import dev.kord.common.entity.*
+import dev.kord.common.entity.optional.Optional
 import dev.kord.core.Kord
 import dev.kord.core.behavior.reply
+import dev.kord.core.entity.interaction.GuildChatInputCommandInteraction
 import dev.kord.core.entity.interaction.GuildMessageCommandInteraction
 import dev.kord.core.event.message.MessageCreateEvent
 import dev.kord.core.on
+import dev.kord.rest.builder.component.ActionRowBuilder
+import dev.kord.rest.builder.component.ActionRowComponentBuilder
+import dev.kord.rest.builder.component.SelectMenuBuilder
+import dev.kord.rest.builder.interaction.string
 import dev.kord.rest.builder.message.create.actionRow
+import dev.kord.rest.route.Route
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -33,20 +42,87 @@ suspend fun Kord.commandsMain() {
 		
 	}
 	
-	val commands = guildApplicationCommands<Int>(guildId = Snowflake(serverConfig.servers.values.first().id)) list@ {
-		if(!secretConfig.commands) return@list
-		message(id = 0, name = "유사 메시지 필터")
-	}
-	
-	launch {
-		collectCommand(commands).collect {
-			when(it.data) {
-				0 -> filterSimilar(it.interaction as GuildMessageCommandInteraction)
-			}
+	slashMain()
+}
+
+enum class Command { filter, test }
+
+
+@Suppress("SuspendFunctionOnCoroutineScope")
+suspend fun Kord.slashMain() {
+	val manager = guildApplicationCommands<Command>(guildId = Snowflake(868429217740783637)) {
+		if(!secretConfig.commands) return@guildApplicationCommands
+		message(id = Command.filter, name = "유사 메시지 필터")
+		
+		input(Command.test, name = "test", description = "Wa! Test!") {
+			string(name = "arg", description = "String")
 		}
 	}
 	
-	slashCommands()
+	launch {
+		collectCommand(manager).collect { (command, interaction) ->
+			when(command) {
+				Command.filter -> filterSimilar(interaction as GuildMessageCommandInteraction)
+				Command.test -> {
+					interaction as GuildChatInputCommandInteraction
+					@OptIn(KordUnsafe::class, KordExperimental::class)
+					rest.unsafe(route = Route.InteractionResponseCreate) {
+						keys[Route.InteractionId] = interaction.id
+						keys[Route.InteractionToken] = interaction.token
+						body(
+							ModalInteractionResponseCreateRequest.serializer(),
+							ModalInteractionResponseCreateRequest(
+								type = InteractionResponseType.Unknown(9), // MODAL
+								data = ModalInteractionApplicationCommandCallbackData(
+									customId = "my_dialog",
+									title = "와! 이것이 창??",
+									components = listOf(
+										// ButtonBuilder.InteractionButtonBuilder(
+										// 	style = ButtonStyle.Primary,
+										// 	customId = "wow"
+										// ).apply {
+										// 	label = "확인"
+										// }.build()
+										// ActionRowBuilder().apply { 
+										// 	selectMenu(customId = "select!") {
+										// 		option("히히히", value = "1")
+										// 		option("신기하다", value = "2")
+										//		
+										// 	}
+										// }.build()
+										// SelectMenuBuilder(customId = "select").apply {
+										// 	option("히히히", value = "1")
+										// 	option("신기하다", value = "2")
+										// }.build()
+										DiscordComponent(
+											ComponentType.ActionRow,
+											components = Optional(listOf(
+												DiscordComponent(
+													type = ComponentType.Unknown(4), // text input
+													customId = Optional("dialog"),
+													style = Optional(ButtonStyle.Primary), // not button but '1' is correct
+													label = Optional("하하하 나는 입력이다")
+													// type	integer	4 for a text input
+													// custom_id	string	a developer-defined identifier for the input, max 100 characters
+													// style	integer	the Text Input Style
+													// label	string	the label for this component
+													// min_length?	integer	the minimum input length for a text input, min 0, max 4000
+													// max_length?	integer	the maximum input length for a text input, min 1, max 4000
+													// required?	boolean	whether this component is required to be filled, default false
+													// value?	string	a pre-filled value for this component, max 4000 characters
+													// placeholder?
+												)
+											))
+										)
+									)
+								)
+							)
+						)
+					}
+				}
+			}
+		}
+	}
 }
 
 
